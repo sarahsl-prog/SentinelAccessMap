@@ -1,0 +1,7 @@
+{
+  "name": "SentinelAccess",
+  "description": "An accessibility-first network security dashboard featuring voice navigation, screen-reader friendly data visualization, and AI-powered threat narratives.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
