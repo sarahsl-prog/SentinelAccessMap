@@ -8,9 +8,19 @@ interface NetworkGraphProps {
   onNodeClick: (node: NetworkNode) => void;
   width?: number;
   height?: number;
+  reducedMotion?: boolean;
+  highContrast?: boolean;
 }
 
-const NetworkGraph: React.FC<NetworkGraphProps> = ({ nodes, links, onNodeClick, width = 800, height = 600 }) => {
+const NetworkGraph: React.FC<NetworkGraphProps> = ({ 
+  nodes, 
+  links, 
+  onNodeClick, 
+  width = 800, 
+  height = 600,
+  reducedMotion = false,
+  highContrast = false
+}) => {
   const svgRef = useRef<SVGSVGElement>(null);
 
   // Prepare data clone to avoid mutating props directly in D3
@@ -32,15 +42,20 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({ nodes, links, onNodeClick, 
       .force("charge", d3.forceManyBody().strength(-400))
       .force("center", d3.forceCenter(width / 2, height / 2));
 
+    // ACCESSIBILITY: If Reduced Motion is requested, increase decay to settle faster
+    if (reducedMotion) {
+      simulation.alphaDecay(0.15); 
+    }
+
     // Links
     const link = svg.append("g")
       .attr("class", "links")
       .selectAll("line")
       .data(graphData.links)
       .enter().append("line")
-      .attr("stroke", "#475569") // Slate 600
-      .attr("stroke-width", 2)
-      .attr("opacity", 0.6);
+      .attr("stroke", highContrast ? "#ffffff" : "#475569") // White in HC mode
+      .attr("stroke-width", highContrast ? 4 : 2) // Thicker in HC mode
+      .attr("opacity", highContrast ? 1 : 0.6);
 
     // Node Groups
     const node = svg.append("g")
@@ -50,7 +65,7 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({ nodes, links, onNodeClick, 
       .enter().append("g")
       .attr("tabindex", 0) // Accessibility: Make nodes focusable
       .attr("role", "button")
-      .attr("aria-label", d => `Node ${d.label}, Status: ${d.status}`)
+      .attr("aria-label", d => `Node ${d.label}, Status: ${d.status}. Press Enter to view details.`)
       .call(d3.drag<SVGGElement, any>()
         .on("start", dragstarted)
         .on("drag", dragged)
@@ -63,6 +78,7 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({ nodes, links, onNodeClick, 
       })
       .on("keydown", (event, d) => {
         if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
           const originalNode = nodes.find(n => n.id === d.id);
           if (originalNode) onNodeClick(originalNode);
         }
@@ -72,13 +88,13 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({ nodes, links, onNodeClick, 
     node.append("circle")
       .attr("r", 20)
       .attr("fill", (d: any) => {
-        if (d.status === 'critical') return '#ef4444'; // Red
-        if (d.status === 'warning') return '#f59e0b'; // Amber
-        return '#3b82f6'; // Blue
+        if (d.status === 'critical') return highContrast ? '#ff0000' : '#ef4444'; 
+        if (d.status === 'warning') return highContrast ? '#ffa500' : '#f59e0b';
+        return highContrast ? '#0000ff' : '#3b82f6';
       })
-      .attr("stroke", "#fff")
-      .attr("stroke-width", 1.5)
-      .attr("class", "transition-all duration-300 hover:scale-110 cursor-pointer shadow-lg");
+      .attr("stroke", highContrast ? "#ffff00" : "#fff") // Yellow stroke for high contrast visibility
+      .attr("stroke-width", highContrast ? 3 : 1.5)
+      .attr("class", reducedMotion ? "cursor-pointer" : "transition-all duration-300 hover:scale-110 cursor-pointer shadow-lg");
 
     // Icons/Labels inside nodes
     node.append("text")
@@ -87,6 +103,7 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({ nodes, links, onNodeClick, 
       .attr("text-anchor", "middle")
       .attr("fill", "white")
       .style("font-size", "10px")
+      .style("font-weight", "bold")
       .style("pointer-events", "none")
       .text(d => d.type.charAt(0).toUpperCase());
 
@@ -95,8 +112,9 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({ nodes, links, onNodeClick, 
       .attr("dx", 0)
       .attr("dy", 35)
       .attr("text-anchor", "middle")
-      .attr("fill", "#cbd5e1")
-      .style("font-size", "12px")
+      .attr("fill", highContrast ? "#ffffff" : "#cbd5e1")
+      .style("font-size", highContrast ? "14px" : "12px")
+      .style("font-weight", highContrast ? "bold" : "normal")
       .text(d => d.label);
 
     // Simulation Tick
@@ -128,13 +146,14 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({ nodes, links, onNodeClick, 
       d.fy = null;
     }
 
-  }, [graphData, width, height, nodes, onNodeClick]);
+  }, [graphData, width, height, nodes, onNodeClick, reducedMotion, highContrast]);
 
   return (
     <div className="w-full h-full bg-slate-900 rounded-lg overflow-hidden shadow-inner border border-slate-700 relative">
       <div className="absolute top-2 left-2 z-10 bg-slate-800/80 p-2 rounded text-xs text-slate-400">
         <p>Graph View (Interactive)</p>
         <p className="mt-1">Use <span className="font-mono text-white">Tab</span> to navigate nodes.</p>
+        {reducedMotion && <p className="mt-1 text-amber-400 font-bold">Reduced Motion Active</p>}
       </div>
       <svg 
         ref={svgRef} 

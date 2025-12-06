@@ -5,6 +5,7 @@ export interface NetworkNode {
   status: 'secure' | 'warning' | 'critical';
   ip: string;
   os: string;
+  description: string;
   vulnerabilities: Vulnerability[];
   x?: number;
   y?: number;

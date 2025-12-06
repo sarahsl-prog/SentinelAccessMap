@@ -1,31 +1,35 @@
 import React, { useEffect, useState } from 'react';
 import { NetworkNode } from '../types';
 import { generateThreatNarrative } from '../services/geminiService';
-import { AlertTriangle, CheckCircle, ShieldAlert, Volume2, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle, ShieldAlert, Volume2, X, Info } from 'lucide-react';
 
 interface ThreatPanelProps {
   node: NetworkNode | null;
   onClose: () => void;
   audioEnabled: boolean;
+  autoReadDescription: boolean;
   onSpeak: (text: string) => void;
 }
 
-const ThreatPanel: React.FC<ThreatPanelProps> = ({ node, onClose, audioEnabled, onSpeak }) => {
+const ThreatPanel: React.FC<ThreatPanelProps> = ({ node, onClose, audioEnabled, autoReadDescription, onSpeak }) => {
   const [narrative, setNarrative] = useState<string>('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (node) {
+      // Immediate read of the static description if enabled
+      if (audioEnabled && autoReadDescription) {
+        onSpeak(`Selected ${node.label}. ${node.description}`);
+      }
+
+      // Fetch AI narrative in background, but don't auto-speak it to avoid conflict
       setLoading(true);
       generateThreatNarrative(node).then(text => {
         setNarrative(text);
         setLoading(false);
-        if (audioEnabled) {
-          onSpeak(`Selected ${node.label}. ${text}`);
-        }
       });
     }
-  }, [node, audioEnabled]); // Added onSpeak to dependency array if it changes, otherwise can omit if stable
+  }, [node, audioEnabled, autoReadDescription]); 
 
   if (!node) {
     return (
@@ -66,6 +70,17 @@ const ThreatPanel: React.FC<ThreatPanelProps> = ({ node, onClose, audioEnabled, 
             </div>
         </div>
 
+        {/* Static Description */}
+        <div className="p-4 bg-slate-800/50 rounded-lg border border-slate-700">
+           <div className="flex items-center gap-2 text-slate-300 mb-2">
+              <Info size={16} className="text-blue-400"/>
+              <span className="font-semibold text-sm uppercase tracking-wider text-blue-400">System Overview</span>
+           </div>
+           <p className="text-slate-200">
+             {node.description}
+           </p>
+        </div>
+
         {/* AI Narrative */}
         <div className="space-y-2">
           <div className="flex justify-between items-center">
@@ -73,7 +88,7 @@ const ThreatPanel: React.FC<ThreatPanelProps> = ({ node, onClose, audioEnabled, 
             <button 
                 onClick={() => onSpeak(narrative)}
                 className="text-slate-400 hover:text-blue-400 transition-colors"
-                title="Read Aloud"
+                title="Read AI Narrative"
             >
                 <Volume2 size={20} />
             </button>
@@ -84,11 +99,11 @@ const ThreatPanel: React.FC<ThreatPanelProps> = ({ node, onClose, audioEnabled, 
                     <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></span>
                     <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce delay-75"></span>
                     <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce delay-150"></span>
-                    Generating Insight...
+                    Generating Advanced Insight...
                 </div>
             ) : (
-                <p className="text-slate-300 leading-relaxed">
-                    {narrative}
+                <p className="text-slate-300 leading-relaxed italic">
+                    "{narrative}"
                 </p>
             )}
           </div>

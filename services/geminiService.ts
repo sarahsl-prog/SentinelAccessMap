@@ -93,7 +93,15 @@ export const parseVoiceCommand = async (transcript: string): Promise<string> => 
     const prompt = `
       Analyze this voice command for a security dashboard: "${transcript}".
       Return a simple JSON object with an 'intent' field.
-      Possible intents: "SELECT_CRITICAL", "SHOW_DETAILS", "ZOOM_IN", "ZOOM_OUT", "READ_SUMMARY", "UNKNOWN".
+      
+      Possible intents: 
+      - "SELECT_CRITICAL" (user wants to see high severity items)
+      - "SHOW_DETAILS" (user wants more info on selected item)
+      - "READ_SUMMARY" (user wants an overview)
+      - "NAVIGATION" (user wants to change view or open menus)
+      - "UNKNOWN"
+      
+      If intent is "NAVIGATION", include a 'target' field with values: 'graph', 'list', 'settings', 'chat'.
       If they mention a specific host type (like 'database'), include 'targetType' in the JSON.
     `;
      // Using Flash for speed on simple classification
