@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageSquare, Send, Search, Minimize2, Maximize2, Loader2, Globe } from 'lucide-react';
+import { MessageSquare, Send, Search, ChevronDown, ChevronUp, Loader2, Globe, Terminal } from 'lucide-react';
 import { sendMessageToChatbot, searchThreatIntel } from '../services/geminiService';
 import { ChatMessage } from '../types';
 
@@ -9,11 +9,11 @@ interface ChatBotProps {
 }
 
 const ChatBot: React.FC<ChatBotProps> = ({ onSpeak, audioEnabled }) => {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(true);
   const [mode, setMode] = useState<'chat' | 'search'>('chat');
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: '0', role: 'model', text: 'Hello, I am SentinelAI. How can I assist with your security analysis today?', timestamp: new Date() }
+    { id: '0', role: 'model', text: 'SentinelAI Console initialized. Ready for query...', timestamp: new Date() }
   ]);
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -23,8 +23,10 @@ const ChatBot: React.FC<ChatBotProps> = ({ onSpeak, audioEnabled }) => {
   };
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, isOpen]);
+    if (isExpanded) {
+        scrollToBottom();
+    }
+  }, [messages, isExpanded]);
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
@@ -76,95 +78,104 @@ const ChatBot: React.FC<ChatBotProps> = ({ onSpeak, audioEnabled }) => {
     }
   };
 
-  if (!isOpen) {
-    return (
-      <button
-        onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-blue-600 hover:bg-blue-500 rounded-full shadow-lg flex items-center justify-center text-white transition-all transform hover:scale-105 z-50"
-        aria-label="Open Security Chat Assistant"
-      >
-        <MessageSquare size={24} />
-      </button>
-    );
-  }
-
   return (
-    <div className="fixed bottom-6 right-6 w-96 h-[600px] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl flex flex-col z-50 overflow-hidden">
-      {/* Header */}
-      <div className="p-4 bg-slate-800 border-b border-slate-700 flex justify-between items-center">
-        <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${mode === 'chat' ? 'bg-green-400' : 'bg-amber-400'}`}></div>
-            <h3 className="font-bold text-white">SentinelAI</h3>
+    <div 
+        className={`w-full bg-slate-900 border-t border-slate-700 flex flex-col transition-all duration-300 ease-in-out ${isExpanded ? 'h-80' : 'h-12'}`}
+    >
+      {/* Header Bar */}
+      <div 
+        className="h-12 px-4 bg-slate-800 border-b border-slate-700 flex justify-between items-center cursor-pointer hover:bg-slate-750"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        <div className="flex items-center gap-3">
+            <div className={`p-1 rounded ${mode === 'chat' ? 'bg-green-500/20 text-green-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                <Terminal size={18} />
+            </div>
+            <h3 className="font-bold text-slate-200 text-sm tracking-wide">SENTINEL_AI_CONSOLE</h3>
+            {mode === 'search' && (
+                <span className="text-xs text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                    SEARCH GROUNDING ACTIVE
+                </span>
+            )}
         </div>
-        <div className="flex gap-2">
-            <button 
-                onClick={() => setMode(mode === 'chat' ? 'search' : 'chat')}
-                className={`p-1.5 rounded transition-colors ${mode === 'search' ? 'bg-amber-500 text-white' : 'text-slate-400 hover:text-white'}`}
-                title={mode === 'chat' ? "Switch to Search Grounding" : "Switch to Chat"}
-            >
-                {mode === 'chat' ? <MessageSquare size={16} /> : <Globe size={16} />}
-            </button>
-            <button onClick={() => setIsOpen(false)} className="text-slate-400 hover:text-white">
-                <Minimize2 size={18} />
-            </button>
+        
+        <div className="flex items-center gap-3">
+            <div className="flex bg-slate-900 rounded-lg p-0.5 border border-slate-700" onClick={(e) => e.stopPropagation()}>
+                <button 
+                    onClick={() => setMode('chat')}
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${mode === 'chat' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                >
+                    Chat
+                </button>
+                <button 
+                    onClick={() => setMode('search')}
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${mode === 'search' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                >
+                    Web Search
+                </button>
+            </div>
+            <div className="text-slate-400">
+                {isExpanded ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
+            </div>
         </div>
       </div>
 
-      {/* Mode Indicator */}
-      {mode === 'search' && (
-          <div className="bg-amber-500/10 text-amber-500 text-xs py-1 px-4 text-center border-b border-amber-500/20">
-              <Globe size={12} className="inline mr-1" />
-              Using Google Search Grounding (Live Data)
-          </div>
-      )}
-
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-900">
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
-            <div
-              className={`max-w-[85%] rounded-lg p-3 text-sm ${
-                msg.role === 'user'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-slate-800 text-slate-200 border border-slate-700'
-              }`}
-            >
-              <div className="whitespace-pre-wrap">{msg.text}</div>
-            </div>
-          </div>
-        ))}
-        {loading && (
-            <div className="flex justify-start">
-                <div className="bg-slate-800 rounded-lg p-3 border border-slate-700">
-                    <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />
+      {/* Main Content Area (Only visible when expanded) */}
+      <div className={`flex-1 flex overflow-hidden ${!isExpanded && 'hidden'}`}>
+          
+          {/* Messages Log */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 font-mono text-sm bg-slate-950">
+            {messages.map((msg) => (
+              <div
+                key={msg.id}
+                className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
+                <div
+                  className={`max-w-[80%] rounded px-3 py-2 ${
+                    msg.role === 'user'
+                      ? 'bg-slate-800 text-blue-300 border border-slate-700'
+                      : 'text-slate-300'
+                  }`}
+                >
+                  {msg.role === 'model' && <span className="text-green-500 mr-2 opacity-50">$</span>}
+                  <span className="whitespace-pre-wrap">{msg.text}</span>
                 </div>
-            </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
+              </div>
+            ))}
+            {loading && (
+                <div className="flex justify-start">
+                    <div className="text-slate-500 flex items-center gap-2 px-3">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        <span>Processing request...</span>
+                    </div>
+                </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
 
-      {/* Input */}
-      <div className="p-3 bg-slate-800 border-t border-slate-700">
-        <div className="relative">
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={mode === 'search' ? "Search for CVEs, news..." : "Ask a security question..."}
-            className="w-full bg-slate-900 text-white rounded-lg pl-4 pr-12 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none border border-slate-700"
-            rows={2}
-          />
-          <button
-            onClick={handleSend}
-            disabled={!input.trim() || loading}
-            className="absolute right-2 bottom-2 p-2 bg-blue-600 text-white rounded-md hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {mode === 'search' ? <Search size={16} /> : <Send size={16} />}
-          </button>
-        </div>
+          {/* Input Area */}
+          <div className="w-96 bg-slate-900 p-4 border-l border-slate-700 flex flex-col justify-between">
+             <div className="text-xs text-slate-500 mb-2">
+                INPUT COMMAND
+             </div>
+             <div className="flex-1 relative">
+                <textarea
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder={mode === 'search' ? "Enter search query..." : "Ask Sentinel AI..."}
+                    className="w-full h-full bg-slate-800 text-white rounded p-3 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none border border-slate-700 font-mono"
+                />
+             </div>
+             <button
+                onClick={handleSend}
+                disabled={!input.trim() || loading}
+                className="mt-3 w-full py-2 bg-blue-600 hover:bg-blue-500 text-white rounded text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50 transition-colors"
+             >
+                {mode === 'search' ? <Search size={14} /> : <Send size={14} />}
+                EXECUTE
+             </button>
+          </div>
       </div>
     </div>
   );

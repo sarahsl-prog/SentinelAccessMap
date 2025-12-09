@@ -3,14 +3,17 @@ import NetworkGraph from './components/NetworkGraph';
 import ThreatPanel from './components/ThreatPanel';
 import ChatBot from './components/ChatBot';
 import SettingsModal from './components/SettingsModal';
-import { mockNodes, mockLinks } from './services/mockData';
-import { NetworkNode, ViewMode } from './types';
-import { Mic, MicOff, Volume2, VolumeX, List, Activity, Settings } from 'lucide-react';
+import { mockNodes, mockLinks, scannedNodes, scannedLinks } from './services/mockData';
+import { NetworkNode, NetworkLink, ViewMode } from './types';
+import { Mic, MicOff, Volume2, VolumeX, List, Activity, Settings, Scan, Loader2 } from 'lucide-react';
 import { parseVoiceCommand } from './services/geminiService';
 
 const App: React.FC = () => {
+  const [nodes, setNodes] = useState<NetworkNode[]>(mockNodes);
+  const [links, setLinks] = useState<NetworkLink[]>(mockLinks);
   const [selectedNode, setSelectedNode] = useState<NetworkNode | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('graph');
+  const [isScanning, setIsScanning] = useState(false);
   
   // Settings State
   const [audioEnabled, setAudioEnabled] = useState(false);
@@ -87,7 +90,7 @@ const App: React.FC = () => {
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       const recog = new SpeechRecognition();
-      recog.continuous = false;
+      recog.continuous = false; // Requiring click for each command is safer for simple web apps
       recog.lang = 'en-US';
       recog.interimResults = false;
 
@@ -101,9 +104,34 @@ const App: React.FC = () => {
       };
 
       recog.onerror = (event: any) => {
-        console.error("Speech error", event.error);
+        // Handle "no-speech" gracefully as a timeout, not an error
+        if (event.error === 'no-speech') {
+             console.log("Mic timeout (no speech detected).");
+             setIsListening(false);
+             return;
+        }
+        if (event.error === 'aborted') {
+             setIsListening(false);
+             return;
+        }
+
+        console.error("Speech recognition error:", event.error);
         setIsListening(false);
-        speak("I didn't catch that.");
+        
+        // Handle specific error codes for better UX
+        switch (event.error) {
+            case 'not-allowed':
+                speak("Microphone permission denied. Check browser settings.");
+                break;
+            case 'audio-capture':
+                speak("No microphone detected.");
+                break;
+            case 'network':
+                 speak("Voice service network error.");
+                 break;
+            default:
+                speak("Voice recognition failed.");
+        }
       };
       
       recog.onend = () => {
@@ -124,7 +152,7 @@ const App: React.FC = () => {
 
           switch(result.intent) {
               case 'SELECT_CRITICAL':
-                  const criticalNode = mockNodes.find(n => n.status === 'critical');
+                  const criticalNode = nodes.find(n => n.status === 'critical');
                   if (criticalNode) {
                       setSelectedNode(criticalNode);
                       speak("Selecting first critical host.");
@@ -143,7 +171,7 @@ const App: React.FC = () => {
                   if (selectedNode) {
                       // Let the ThreatPanel handle the reading
                   } else {
-                      const criticalCount = mockNodes.filter(n => n.status === 'critical').length;
+                      const criticalCount = nodes.filter(n => n.status === 'critical').length;
                       speak(`System summary: There are ${criticalCount} critical alerts in the network.`);
                   }
                   break;
@@ -158,8 +186,7 @@ const App: React.FC = () => {
                       setIsSettingsOpen(true);
                       speak("Opening Settings.");
                   } else if (result.target === 'chat') {
-                      // Logic to open chat would require lifting chat state, assume handled or just feedback
-                      speak("Please use the chat button to open the assistant.");
+                      speak("Please use the chat console at the bottom.");
                   }
                   break;
               default:
@@ -176,12 +203,40 @@ const App: React.FC = () => {
         alert("Speech recognition not supported in this browser.");
         return;
     }
+    
     if (isListening) {
         recognition.stop();
     } else {
-        recognition.start();
-        setIsListening(true);
+        try {
+            recognition.start();
+            setIsListening(true);
+        } catch (err) {
+            // Guard against race conditions where start() is called on an active instance
+            console.warn("Recognition already active or failed to start:", err);
+            setIsListening(false);
+        }
     }
+  };
+
+  const handleNetworkScan = () => {
+      if (isScanning) return;
+      setIsScanning(true);
+      speak("Initiating network scan. Please wait.");
+      
+      setTimeout(() => {
+          // Merge new scanned nodes (simulated)
+          const existingIds = new Set(nodes.map(n => n.id));
+          const newNodes = scannedNodes.filter(n => !existingIds.has(n.id));
+          
+          if (newNodes.length > 0) {
+              setNodes(prev => [...prev, ...newNodes]);
+              setLinks(prev => [...prev, ...scannedLinks]);
+              speak(`Scan complete. ${newNodes.length} new devices discovered.`);
+          } else {
+              speak("Scan complete. No new devices found.");
+          }
+          setIsScanning(false);
+      }, 3000);
   };
 
   const handleNodeClick = (node: NetworkNode) => {
@@ -226,6 +281,19 @@ const App: React.FC = () => {
             >
                 <List size={20} />
             </button>
+            
+            <div className="border-t border-slate-700 w-8 my-1"></div>
+
+             <button 
+                onClick={handleNetworkScan}
+                disabled={isScanning}
+                className={`p-3 rounded-xl transition-all ${isScanning ? 'bg-amber-900/50 text-amber-400 animate-pulse' : 'bg-slate-800 text-amber-400 border border-slate-600 hover:bg-slate-700'}`}
+                title="Scan Network"
+                aria-label="Scan Network for new devices"
+            >
+                {isScanning ? <Loader2 size={20} className="animate-spin" /> : <Scan size={20} />}
+            </button>
+
         </div>
 
         <div className="flex flex-col gap-4 w-full items-center mb-4">
@@ -261,16 +329,21 @@ const App: React.FC = () => {
       </div>
 
       {/* --- Main Content Area --- */}
-      <div className="flex-1 flex flex-col relative overflow-hidden">
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
         
         {/* Top Bar */}
-        <header className="h-16 bg-surface border-b border-slate-700 flex items-center justify-between px-6 z-10">
+        <header className="h-16 bg-surface border-b border-slate-700 flex flex-none items-center justify-between px-6 z-10">
             <div>
                 <h1 className="text-xl font-bold tracking-tight text-white">Sentinel<span className="text-blue-500">Access</span></h1>
                 <p className="text-xs text-slate-400">Security Monitoring Dashboard • Live</p>
             </div>
             
             <div className="flex items-center gap-4">
+               {isScanning && (
+                   <span className="text-amber-400 text-sm font-mono flex items-center gap-2">
+                       <Loader2 size={14} className="animate-spin"/> SCANNING NETWORK...
+                   </span>
+               )}
                {reducedMotion ? (
                     <div className="flex items-center gap-2 px-3 py-1 bg-slate-900 rounded-full border border-slate-700">
                         <div className="w-2 h-2 rounded-full bg-slate-500"></div>
@@ -285,23 +358,24 @@ const App: React.FC = () => {
             </div>
         </header>
 
-        {/* Dashboard Content */}
-        <div className="flex-1 relative flex">
-            {/* Viewport */}
+        {/* Middle Section: Dashboard Viewport + Side Panel */}
+        <div className="flex-1 relative flex min-h-0">
+            {/* Viewport (Graph/List) */}
             <div className="flex-1 bg-slate-950 relative overflow-hidden">
                 {viewMode === 'graph' ? (
                     <NetworkGraph 
-                        nodes={mockNodes} 
-                        links={mockLinks} 
+                        nodes={nodes} 
+                        links={links} 
                         onNodeClick={handleNodeClick}
-                        width={window.innerWidth - (selectedNode ? 400 : 80)} // Adjust width dynamically strictly for example
+                        selectedNodeId={selectedNode?.id}
+                        width={window.innerWidth - (selectedNode ? 400 : 80)} // Dynamic sizing strictly for example
                         reducedMotion={reducedMotion}
                         highContrast={highContrast}
                     />
                 ) : (
                     <div className="p-6 overflow-y-auto h-full w-full">
                          <div className="grid gap-4">
-                            {mockNodes.map(node => (
+                            {nodes.map(node => (
                                 <button 
                                     key={node.id}
                                     onClick={() => handleNodeClick(node)}
@@ -323,7 +397,7 @@ const App: React.FC = () => {
                 
                 {/* Voice Command Overlay Prompt */}
                 {isListening && (
-                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black/80 text-white px-8 py-4 rounded-2xl backdrop-blur-sm border border-slate-700 flex flex-col items-center animate-fade-in pointer-events-none">
+                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black/80 text-white px-8 py-4 rounded-2xl backdrop-blur-sm border border-slate-700 flex flex-col items-center animate-fade-in pointer-events-none z-30">
                         <Mic className={`w-8 h-8 text-red-500 mb-2 ${reducedMotion ? '' : 'animate-bounce'}`} />
                         <p className="text-lg font-medium">Listening...</p>
                         <p className="text-sm text-slate-400 mt-1">Try "Switch to List View" or "Select critical"</p>
@@ -344,10 +418,10 @@ const App: React.FC = () => {
                 </div>
             )}
         </div>
-      </div>
 
-      {/* Floating Chat Component */}
-      <ChatBot onSpeak={speak} audioEnabled={audioEnabled} />
+        {/* Bottom Section: Permanent Chat Console */}
+        <ChatBot onSpeak={speak} audioEnabled={audioEnabled} />
+      </div>
       
       {/* Settings Modal */}
       <SettingsModal 

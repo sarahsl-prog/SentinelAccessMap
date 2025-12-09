@@ -6,6 +6,7 @@ interface NetworkGraphProps {
   nodes: NetworkNode[];
   links: NetworkLink[];
   onNodeClick: (node: NetworkNode) => void;
+  selectedNodeId?: string | null;
   width?: number;
   height?: number;
   reducedMotion?: boolean;
@@ -16,6 +17,7 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({
   nodes, 
   links, 
   onNodeClick, 
+  selectedNodeId,
   width = 800, 
   height = 600,
   reducedMotion = false,
@@ -37,9 +39,27 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({
     const svg = d3.select(svgRef.current);
     svg.selectAll("*").remove(); // Clear previous render
 
+    // Define filter for glow effect
+    const defs = svg.append("defs");
+    const filter = defs.append("filter")
+        .attr("id", "glow")
+        .attr("x", "-50%")
+        .attr("y", "-50%")
+        .attr("width", "200%")
+        .attr("height", "200%");
+    
+    filter.append("feGaussianBlur")
+        .attr("stdDeviation", "4")
+        .attr("result", "coloredBlur");
+        
+    const feMerge = filter.append("feMerge");
+    feMerge.append("feMergeNode").attr("in", "coloredBlur");
+    feMerge.append("feMergeNode").attr("in", "SourceGraphic");
+
+    // Increased forces for larger nodes
     const simulation = d3.forceSimulation(graphData.nodes as d3.SimulationNodeDatum[])
-      .force("link", d3.forceLink(graphData.links).id((d: any) => d.id).distance(150))
-      .force("charge", d3.forceManyBody().strength(-500))
+      .force("link", d3.forceLink(graphData.links).id((d: any) => d.id).distance(180)) // Increased distance
+      .force("charge", d3.forceManyBody().strength(-800)) // Stronger repulsion
       .force("center", d3.forceCenter(width / 2, height / 2));
 
     // ACCESSIBILITY: If Reduced Motion is requested, increase decay to settle faster
@@ -82,24 +102,12 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({
           const originalNode = nodes.find(n => n.id === d.id);
           if (originalNode) onNodeClick(originalNode);
         }
-      })
-      // Accessibility: Visual Focus Indicator
-      .on("focus", (event, d) => {
-          d3.select(event.currentTarget).select("path")
-            .attr("stroke", "#38bdf8") // sky-400 (Cyan/Blue glow)
-            .attr("stroke-width", 5)
-            .style("filter", "drop-shadow(0 0 8px rgba(56, 189, 248, 0.8))");
-      })
-      .on("blur", (event, d) => {
-          d3.select(event.currentTarget).select("path")
-            .attr("stroke", highContrast ? "#ffff00" : "#fff")
-            .attr("stroke-width", highContrast ? 3 : 2)
-            .style("filter", null); // Revert to class-based shadow if applicable
       });
 
     // Helper to get shape path based on type
+    // INCREASED SIZE by 50% (was 22, now 33)
     const getNodePath = (type: string) => {
-        const s = 22; // base scale size
+        const s = 33; 
         switch (type) {
             case 'router': // Diamond
                 return `M0,-${s*1.3} L${s*1.3},0 L0,${s*1.3} L-${s*1.3},0 Z`;
@@ -127,21 +135,23 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({
     node.append("path")
       .attr("d", d => getNodePath(d.type))
       .attr("fill", (d: any) => getStatusColor(d.status))
-      .attr("stroke", highContrast ? "#ffff00" : "#fff") // Yellow stroke for high contrast visibility
-      .attr("stroke-width", highContrast ? 3 : 2)
-      .attr("class", reducedMotion ? "cursor-pointer" : "transition-all duration-300 hover:scale-110 cursor-pointer shadow-lg drop-shadow-md");
+      .attr("stroke", highContrast ? "#ffff00" : "#fff") 
+      .attr("stroke-width", (d: any) => d.id === selectedNodeId ? 4 : (highContrast ? 3 : 2))
+      .attr("class", reducedMotion ? "cursor-pointer" : "transition-all duration-300 hover:scale-105 cursor-pointer shadow-lg drop-shadow-md")
+      // Light Up Effect for selected node
+      .style("filter", (d: any) => d.id === selectedNodeId ? `drop-shadow(0 0 15px ${getStatusColor(d.status)})` : null)
+      .style("opacity", (d: any) => selectedNodeId && d.id !== selectedNodeId ? 0.6 : 1); // Dim others slightly
 
     // Icons/Labels inside nodes
     node.append("text")
       .attr("dx", 0)
-      .attr("dy", 5) // Center vertically
+      .attr("dy", 8) // Adjusted for larger size
       .attr("text-anchor", "middle")
       .attr("fill", "white")
-      .style("font-size", "10px")
+      .style("font-size", "14px") // Larger text
       .style("font-weight", "bold")
       .style("pointer-events", "none")
       .text(d => {
-          // Return a short code or icon representation
           switch(d.type) {
               case 'router': return 'R';
               case 'firewall': return 'FW';
@@ -155,10 +165,10 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({
     // Labels below nodes
     node.append("text")
       .attr("dx", 0)
-      .attr("dy", 40)
+      .attr("dy", 55) // Pushed down further
       .attr("text-anchor", "middle")
       .attr("fill", highContrast ? "#ffffff" : "#cbd5e1")
-      .style("font-size", highContrast ? "14px" : "12px")
+      .style("font-size", highContrast ? "16px" : "14px")
       .style("font-weight", highContrast ? "bold" : "normal")
       .text(d => d.label);
 
@@ -191,7 +201,7 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({
       d.fy = null;
     }
 
-  }, [graphData, width, height, nodes, onNodeClick, reducedMotion, highContrast]);
+  }, [graphData, width, height, nodes, onNodeClick, reducedMotion, highContrast, selectedNodeId]);
 
   return (
     <div className="w-full h-full bg-slate-900 rounded-lg overflow-hidden shadow-inner border border-slate-700 relative">

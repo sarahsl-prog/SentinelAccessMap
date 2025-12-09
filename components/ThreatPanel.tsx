@@ -45,8 +45,9 @@ const ThreatPanel: React.FC<ThreatPanelProps> = ({ node, onClose, audioEnabled, 
   const statusColor = node.status === 'critical' ? 'text-red-500' : node.status === 'warning' ? 'text-amber-500' : 'text-green-500';
 
   return (
-    <div className="h-full bg-surface border-l border-slate-700 flex flex-col overflow-y-auto">
-      <div className="p-6 border-b border-slate-700 flex justify-between items-start">
+    <div className="h-full bg-surface border-l border-slate-700 flex flex-col">
+      {/* Fixed Header */}
+      <div className="flex-none p-6 border-b border-slate-700 flex justify-between items-start bg-slate-800/50 backdrop-blur-sm z-10">
         <div>
           <h2 className="text-2xl font-bold text-white flex items-center gap-2">
             {node.label}
@@ -58,7 +59,8 @@ const ThreatPanel: React.FC<ThreatPanelProps> = ({ node, onClose, audioEnabled, 
         </button>
       </div>
 
-      <div className="p-6 space-y-6">
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
         {/* Status Indicator */}
         <div className="flex items-center gap-3 p-4 bg-slate-900 rounded-lg border border-slate-700">
             {node.status === 'critical' && <AlertTriangle className="text-red-500" />}
@@ -125,7 +127,7 @@ const ThreatPanel: React.FC<ThreatPanelProps> = ({ node, onClose, audioEnabled, 
         </div>
 
         {/* Vulnerabilities */}
-        <div>
+        <div className="pb-4">
             <h3 className="text-lg font-semibold text-slate-200 mb-3 flex items-center justify-between">
                 <span>Active Vulnerabilities</span>
                 <span className="text-xs px-2 py-1 bg-slate-700 rounded-full text-white">{node.vulnerabilities.length}</span>

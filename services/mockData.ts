@@ -93,3 +93,31 @@ export const mockLinks: NetworkLink[] = [
   { source: 'web-prod-01', target: 'db-prod-01', value: 5 },
   { source: 'web-prod-02', target: 'db-prod-01', value: 5 },
 ];
+
+export const scannedNodes: NetworkNode[] = [
+    {
+        id: 'iot-cam-01',
+        label: 'Lobby Camera',
+        type: 'workstation',
+        status: 'warning',
+        ip: '192.168.3.10',
+        os: 'Embedded Linux',
+        description: 'IoT Security Camera discovered during scan. Default factory credentials (admin/admin) detected.',
+        vulnerabilities: [{id: 'v-new-1', severity: 'high', description: 'Default password set'}]
+    },
+    {
+        id: 'guest-ap-01',
+        label: 'Guest WiFi AP',
+        type: 'router',
+        status: 'secure',
+        ip: '192.168.3.1',
+        os: 'Cisco Meraki',
+        description: 'Guest Access Point detected on VLAN 30.',
+        vulnerabilities: []
+    }
+];
+
+export const scannedLinks: NetworkLink[] = [
+    { source: 'router-main', target: 'iot-cam-01', value: 3 },
+    { source: 'router-main', target: 'guest-ap-01', value: 3 }
+];
